@@ -1,11 +1,13 @@
 use std::{collections::HashMap, future::Future, net::SocketAddr};
+use tokio::net::TcpStream;
 
 use message::Message;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Connection {
     address: SocketAddr,
     headers: Headers,
+    stream: TcpStream,
 }
 
 impl Connection {

@@ -38,30 +38,35 @@ impl Server {
     }
     pub async fn accept(&self) -> Result<Connection, std::io::Error> {
         loop {
-            let (mut stream, addr) = self.listener.accept().await?;
-            match Self::handle(&mut stream, addr).await {
+            let (stream, addr) = self.listener.accept().await?;
+            match Self::handle(stream, addr).await {
                 Ok(o) => {
                     return Ok(o);
                 }
-                Err(_) => {
-                    stream.shutdown().await?;
+                Err((_, mut s)) => {
+                    s.shutdown().await?;
                 }
             }
         }
     }
     async fn handle(
-        stream: &mut TcpStream,
+        mut stream: TcpStream,
         addr: SocketAddr,
-    ) -> Result<Connection, std::io::Error> {
+    ) -> Result<Connection, (std::io::Error, TcpStream)> {
         let mut path = String::new();
-        match tokio::time::timeout(Duration::from_secs(5), stream.read_to_string(&mut path)).await {
+        match match tokio::time::timeout(Duration::from_secs(5), stream.read_to_string(&mut path))
+            .await
+        {
             Ok(o) => o,
             Err(_) => {
-                return Err(std::io::Error::from(std::io::ErrorKind::TimedOut));
+                return Err((std::io::Error::from(std::io::ErrorKind::TimedOut), stream));
             }
-        }?;
+        } {
+            Ok(_) => {}
+            Err(e) => return Err((e, stream)),
+        };
         let mut headers_str = String::new();
-        match tokio::time::timeout(
+        match match tokio::time::timeout(
             Duration::from_secs(5),
             stream.read_to_string(&mut headers_str),
         )
@@ -69,24 +74,42 @@ impl Server {
         {
             Ok(o) => o,
             Err(_) => {
-                return Err(std::io::Error::from(std::io::ErrorKind::TimedOut));
+                return Err((std::io::Error::from(std::io::ErrorKind::TimedOut), stream));
             }
-        }?;
-        let v: Map<String, Value> = from_str::<Value>(&headers_str)?
-            .as_object()
-            .ok_or(std::io::Error::from(std::io::ErrorKind::InvalidData))?
-            .clone();
+        } {
+            Ok(_) => {}
+            Err(e) => return Err((e, stream)),
+        }
+        let v: Map<String, Value> = match match from_str::<Value>(&headers_str) {
+            Ok(o) => o,
+            Err(e) => return Err((e.into(), stream)),
+        }
+        .as_object()
+        {
+            Some(o) => o,
+            None => {
+                return Err((
+                    std::io::Error::from(std::io::ErrorKind::InvalidData),
+                    stream,
+                ));
+            }
+        }
+        .clone();
         let mut hv = Headers::new();
         for (k, v) in v {
             let tostr = v
                 .as_str()
                 .ok_or(std::io::Error::from(std::io::ErrorKind::InvalidData));
-            let s = tostr?;
+            let s = match tostr {
+                Ok(o) => o,
+                Err(e) => return Err((e, stream)),
+            };
             hv.set(k, s.into())
         }
         return Ok(Connection {
             headers: hv,
             address: addr,
+            stream,
         });
     }
 }
