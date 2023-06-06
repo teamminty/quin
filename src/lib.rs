@@ -1,11 +1,11 @@
-use std::{collections::HashMap, net::SocketAddr, future::Future};
+use std::{collections::HashMap, future::Future, net::SocketAddr};
 
 use message::Message;
 
 #[derive(Clone, Debug)]
 pub struct Connection {
     address: SocketAddr,
-    headers: Headers
+    headers: Headers,
 }
 
 impl Connection {
@@ -13,7 +13,7 @@ impl Connection {
         return self.address;
     }
     pub fn headers(&self) -> &Headers {
-        return &self.headers
+        return &self.headers;
     }
     pub async fn send(&mut self, data: impl Into<Message>) -> Result<Message, std::io::Error> {
         let data: Message = data.into();
@@ -28,7 +28,7 @@ pub mod message;
 
 #[derive(Default, Clone, Debug)]
 pub struct Headers {
-    v: HashMap<String, String>
+    v: HashMap<String, String>,
 }
 
 impl Headers {

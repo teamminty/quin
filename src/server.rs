@@ -1,10 +1,10 @@
+use crate::{Connection, Headers};
 use rand::seq::SliceRandom;
 use serde_json::{from_str, Map, Value};
 use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use crate::{Connection, Headers};
 
 #[derive(Debug)]
 pub struct Server {
